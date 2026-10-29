@@ -3,13 +3,13 @@ import ast
 import math
 import operator
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 
-APP_BG = "#f3f6fb"
-CARD = "#ffffff"
-INK = "#17243b"
-MUTED = "#69778e"
-BLUE = "#356df3"
+APP_BG = "#151a2a"
+CARD = "#20263a"
+INK = "#f3f5fb"
+MUTED = "#9ba5bd"
+BLUE = "#4388f5"
 
 
 def calculate(expression):
@@ -70,8 +70,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Everyday Calculator")
-        self.geometry("940x720")
-        self.minsize(800, 630)
+        self.geometry("1040x760")
+        self.minsize(850, 650)
         self.configure(bg=APP_BG)
         self._style()
         self._build()
@@ -86,23 +86,37 @@ class App(tk.Tk):
         style.configure("Title.TLabel", background=APP_BG, foreground=INK, font=("Segoe UI", 23, "bold"))
         style.configure("Sub.TLabel", background=APP_BG, foreground=MUTED, font=("Segoe UI", 10))
         style.configure("CardTitle.TLabel", background=CARD, foreground=INK, font=("Segoe UI", 14, "bold"))
-        style.configure("TButton", font=("Segoe UI", 10), padding=(12, 9))
-        style.configure("Accent.TButton", background=BLUE, foreground="white", font=("Segoe UI", 10, "bold"))
-        style.map("Accent.TButton", background=[("active", "#2458d5")])
-        style.configure("TNotebook", background=APP_BG, borderwidth=0)
-        style.configure("TNotebook.Tab", padding=(17, 11), font=("Segoe UI", 10, "bold"), background="#e8edf6")
-        style.map("TNotebook.Tab", background=[("selected", CARD)], foreground=[("selected", BLUE)])
+        style.configure("TButton", background="#303851", foreground=INK, borderwidth=0,
+                        font=("Segoe UI", 10), padding=(13, 10))
+        style.map("TButton", background=[("active", "#3a4563")], foreground=[("active", "white")])
+        style.configure("Accent.TButton", background=BLUE, foreground="white", borderwidth=0,
+                        font=("Segoe UI", 10, "bold"), padding=(14, 10))
+        style.map("Accent.TButton", background=[("active", "#3476df")])
+        style.configure("TNotebook", background=APP_BG, borderwidth=0, tabmargins=(2, 6, 2, 0))
+        style.configure("TNotebook.Tab", padding=(18, 12), font=("Segoe UI", 10, "bold"),
+                        background="#1b2234", foreground=MUTED, borderwidth=0)
+        style.map("TNotebook.Tab", background=[("selected", CARD), ("active", "#293149")],
+                  foreground=[("selected", BLUE), ("active", INK)])
+        style.configure("TEntry", fieldbackground="#2b3249", foreground=INK,
+                        insertcolor=INK, borderwidth=0, padding=10)
+        style.configure("TCombobox", fieldbackground="#2b3249", background="#2b3249",
+                        foreground=INK, arrowcolor=INK, borderwidth=0, padding=7)
+        style.map("TCombobox", fieldbackground=[("readonly", "#2b3249")],
+                  foreground=[("readonly", INK)], selectbackground=[("readonly", "#2b3249")],
+                  selectforeground=[("readonly", INK)])
 
     def _build(self):
         header = ttk.Frame(self, padding=(30, 22, 30, 14)); header.pack(fill="x")
-        ttk.Label(header, text="Everyday Calculator", style="Title.TLabel").pack(anchor="w")
+        brand = ttk.Frame(header); brand.pack(anchor="w")
+        ttk.Label(brand, text="◈", foreground=BLUE, font=("Segoe UI", 25, "bold")).pack(side="left", padx=(0, 10))
+        ttk.Label(brand, text="Everyday Calculator", style="Title.TLabel").pack(side="left")
         ttk.Label(header, text="Calculate, solve equations, and convert everyday units.", style="Sub.TLabel").pack(anchor="w", pady=(3, 0))
         self.tabs = ttk.Notebook(self); self.tabs.pack(fill="both", expand=True, padx=26, pady=(4, 24))
         for title, builder in [("Calculator", self._calculator), ("Currency", self._currency), ("Mass", self._mass), ("Gravity", self._gravity), ("Data size", self._data)]:
             page = ttk.Frame(self.tabs, padding=24); self.tabs.add(page, text=title); builder(page)
 
     def card(self, parent, title, note):
-        box = ttk.Frame(parent, style="Card.TFrame", padding=24); box.pack(fill="x", pady=(0, 15))
+        box = ttk.Frame(parent, style="Card.TFrame", padding=24, borderwidth=1, relief="solid"); box.pack(fill="x", pady=(0, 15))
         ttk.Label(box, text=title, style="CardTitle.TLabel").pack(anchor="w")
         ttk.Label(box, text=note, style="Card.TLabel", foreground=MUTED).pack(anchor="w", pady=(5, 18))
         return box
@@ -118,6 +132,19 @@ class App(tk.Tk):
         row = ttk.Frame(box, style="Card.TFrame"); row.pack(anchor="w")
         ttk.Button(row, text="Calculate", style="Accent.TButton", command=self._calc).pack(side="left", padx=(0, 8))
         ttk.Button(row, text="Solve for x", command=self._solve).pack(side="left")
+        keypad = ttk.Frame(box, style="Card.TFrame", padding=(0, 18, 0, 2)); keypad.pack(fill="x")
+        keys = [["7", "8", "9", "÷", "AC"], ["4", "5", "6", "×", "⌫"],
+                ["1", "2", "3", "−", "+"], ["(", "0", ")", ".", "="]]
+        for col_index in range(5): keypad.grid_columnconfigure(col_index, weight=1)
+        for row_index, key_row in enumerate(keys):
+            for col_index, key in enumerate(key_row):
+                is_operator = key in {"÷", "×", "−", "+", "="}
+                button = tk.Button(keypad, text=key, relief="flat", bd=0, cursor="hand2",
+                                   bg=BLUE if is_operator else "#2b3249", fg="white" if is_operator else INK,
+                                   activebackground="#3476df" if is_operator else "#3a4563",
+                                   activeforeground="white", font=("Segoe UI", 11, "bold"),
+                                   padx=10, pady=9, command=lambda value=key: self._key(value))
+                button.grid(row=row_index, column=col_index, sticky="ew", padx=4, pady=4)
         self.calc_result = tk.StringVar(value="Your answer will appear here."); self._result(box, self.calc_result)
         funcs = self.card(page, "Supported functions", "sin, cos, tan use radians. You can also use asin, acos, atan, log, ln, abs, round, floor, ceil, exp, pi, and e.")
         ttk.Label(funcs, text="Use * for multiplication, / for division, and ^ for powers. Expressions are evaluated safely.", style="Card.TLabel", foreground=MUTED, wraplength=730).pack(anchor="w")
@@ -125,6 +152,12 @@ class App(tk.Tk):
     def _calc(self):
         try: self.calc_result.set(f"= {calculate(self.expr.get())}")
         except Exception as e: self.calc_result.set(f"Check the expression: {e}")
+
+    def _key(self, key):
+        if key == "AC": self.expr.set("")
+        elif key == "⌫": self.expr.set(self.expr.get()[:-1])
+        elif key == "=": self._calc()
+        else: self.expr.set(self.expr.get() + {"÷": "/", "×": "*", "−": "-"}.get(key, key))
     def _solve(self):
         try: self.calc_result.set(solve_equation(self.expr.get()))
         except Exception as e: self.calc_result.set(f"Could not solve: {e}")
