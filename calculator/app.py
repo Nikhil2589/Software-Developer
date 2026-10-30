@@ -5,11 +5,60 @@ import operator
 import tkinter as tk
 from tkinter import ttk
 
-APP_BG = "#151a2a"
-CARD = "#20263a"
+APP_BG = "#111827"
+CARD = "#1c263a"
 INK = "#f3f5fb"
 MUTED = "#9ba5bd"
 BLUE = "#4388f5"
+GLASS_EDGE = "#526484"
+
+
+class GlassButton(tk.Canvas):
+    """Rounded, softly highlighted button drawn on a canvas for consistent corners."""
+
+    def __init__(self, parent, text, command, accent=False, width=110, height=42):
+        self.label = text
+        self.command = command
+        self.accent = accent
+        self.normal = BLUE if accent else "#27344d"
+        self.hover = "#5b9aff" if accent else "#354462"
+        try:
+            parent_bg = parent.cget("background")
+        except tk.TclError:
+            parent_bg = CARD
+        if not parent_bg:
+            parent_bg = CARD
+        super().__init__(parent, width=width, height=height, bg=parent_bg,
+                         highlightthickness=0, bd=0, cursor="hand2", takefocus=True)
+        self.bind("<Configure>", lambda _event: self._draw())
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+        self.bind("<Button-1>", lambda _event: self.command())
+        self.bind("<Return>", lambda _event: self.command())
+        self.bind("<space>", lambda _event: self.command())
+        self._draw()
+
+    def _draw(self):
+        self.delete("all")
+        w, h = max(self.winfo_width(), 30), max(self.winfo_height(), 28)
+        r = min(14, h / 2 - 1, w / 2 - 1)
+        points = [r, 1, w-r, 1, w-1, 1, w-1, r, w-1, h-r, w-1, h-1,
+                  w-r, h-1, r, h-1, 1, h-1, 1, h-r, 1, r, 1, 1]
+        fill = self.hover if getattr(self, "_hovered", False) else self.normal
+        self.create_polygon(points, smooth=True, splinesteps=18, fill=fill,
+                            outline=GLASS_EDGE if not self.accent else "#83b4ff", width=1)
+        # A fine top rim gives the flat Tk canvas a glass-like highlight.
+        self.create_line(r+5, 2, w-r-5, 2, fill="#a7c8ff" if self.accent else "#697c9f", width=1)
+        self.create_text(w/2, h/2+1, text=self.label, fill="white" if self.accent else INK,
+                         font=("Segoe UI", 10, "bold" if self.accent else "normal"))
+
+    def _on_enter(self, _event):
+        self._hovered = True
+        self._draw()
+
+    def _on_leave(self, _event):
+        self._hovered = False
+        self._draw()
 
 
 def calculate(expression):
@@ -80,7 +129,7 @@ class App(tk.Tk):
         style = ttk.Style(self)
         style.theme_use("clam")
         style.configure("TFrame", background=APP_BG)
-        style.configure("Card.TFrame", background=CARD)
+        style.configure("Card.TFrame", background=CARD, bordercolor="#33415d", lightcolor="#394a69", darkcolor="#182136")
         style.configure("TLabel", background=APP_BG, foreground=INK, font=("Segoe UI", 10))
         style.configure("Card.TLabel", background=CARD, foreground=INK, font=("Segoe UI", 10))
         style.configure("Title.TLabel", background=APP_BG, foreground=INK, font=("Segoe UI", 23, "bold"))
@@ -94,9 +143,9 @@ class App(tk.Tk):
         style.map("Accent.TButton", background=[("active", "#3476df")])
         style.configure("TNotebook", background=APP_BG, borderwidth=0, tabmargins=(2, 6, 2, 0))
         style.configure("TNotebook.Tab", padding=(18, 12), font=("Segoe UI", 10, "bold"),
-                        background="#1b2234", foreground=MUTED, borderwidth=0)
-        style.map("TNotebook.Tab", background=[("selected", CARD), ("active", "#293149")],
-                  foreground=[("selected", BLUE), ("active", INK)])
+                        background="#202c43", foreground=MUTED, borderwidth=0)
+        style.map("TNotebook.Tab", background=[("selected", "#2a3954"), ("active", "#34445f")],
+                  foreground=[("selected", "#8fc0ff"), ("active", INK)])
         style.configure("TEntry", fieldbackground="#2b3249", foreground=INK,
                         insertcolor=INK, borderwidth=0, padding=10)
         style.configure("TCombobox", fieldbackground="#2b3249", background="#2b3249",
@@ -130,8 +179,8 @@ class App(tk.Tk):
         ent = ttk.Entry(box, textvariable=self.expr, font=("Segoe UI", 16), width=48); ent.pack(fill="x", ipady=8); ent.bind("<Return>", lambda _: self._calc())
         ttk.Label(box, text="Examples:  (12 + 8) / 4     •     sqrt(81) + pi     •     2*x^2 - 5*x + 2 = 0", style="Card.TLabel", foreground=MUTED).pack(anchor="w", pady=(9, 14))
         row = ttk.Frame(box, style="Card.TFrame"); row.pack(anchor="w")
-        ttk.Button(row, text="Calculate", style="Accent.TButton", command=self._calc).pack(side="left", padx=(0, 8))
-        ttk.Button(row, text="Solve for x", command=self._solve).pack(side="left")
+        GlassButton(row, "Calculate", self._calc, accent=True, width=124).pack(side="left", padx=(0, 9))
+        GlassButton(row, "Solve for x", self._solve, width=124).pack(side="left")
         keypad = ttk.Frame(box, style="Card.TFrame", padding=(0, 18, 0, 2)); keypad.pack(fill="x")
         keys = [["7", "8", "9", "÷", "AC"], ["4", "5", "6", "×", "⌫"],
                 ["1", "2", "3", "−", "+"], ["(", "0", ")", ".", "="]]
@@ -139,11 +188,8 @@ class App(tk.Tk):
         for row_index, key_row in enumerate(keys):
             for col_index, key in enumerate(key_row):
                 is_operator = key in {"÷", "×", "−", "+", "="}
-                button = tk.Button(keypad, text=key, relief="flat", bd=0, cursor="hand2",
-                                   bg=BLUE if is_operator else "#2b3249", fg="white" if is_operator else INK,
-                                   activebackground="#3476df" if is_operator else "#3a4563",
-                                   activeforeground="white", font=("Segoe UI", 11, "bold"),
-                                   padx=10, pady=9, command=lambda value=key: self._key(value))
+                button = GlassButton(keypad, key, lambda value=key: self._key(value),
+                                     accent=is_operator, width=90, height=46)
                 button.grid(row=row_index, column=col_index, sticky="ew", padx=4, pady=4)
         self.calc_result = tk.StringVar(value="Your answer will appear here."); self._result(box, self.calc_result)
         funcs = self.card(page, "Supported functions", "sin, cos, tan use radians. You can also use asin, acos, atan, log, ln, abs, round, floor, ceil, exp, pi, and e.")
@@ -172,7 +218,8 @@ class App(tk.Tk):
         ttk.Label(row, text="to", style="Card.TLabel", foreground=MUTED).pack(side="left", padx=8)
         ttk.Combobox(row, textvariable=to_var, values=units, state="readonly", width=18).pack(side="left", padx=5, ipady=4)
         result_var = tk.StringVar(value="Converted result will appear here.")
-        ttk.Button(box, text="Convert", style="Accent.TButton", command=lambda: self._convert(convert_fn, amount_var, from_var, to_var, result_var)).pack(anchor="w", pady=(18, 0))
+        GlassButton(box, "Convert", lambda: self._convert(convert_fn, amount_var, from_var, to_var, result_var),
+                    accent=True, width=126).pack(anchor="w", pady=(18, 0))
         self._result(box, result_var)
 
     def _convert(self, fn, amount_var, from_var, to_var, result_var):
@@ -210,8 +257,8 @@ class App(tk.Tk):
         self.rates = {"USD":1, "EUR":.92, "GBP":.79, "INR":83.5, "JPY":150, "CAD":1.36, "AUD":1.52, "CHF":.88, "CNY":7.2, "SGD":1.34}
         self._currency_rates_label = ttk.Label(box, text="Starter rates: 1 USD = 83.5 INR (illustrative).", style="Card.TLabel", foreground=MUTED, wraplength=700); self._currency_rates_label.pack(anchor="w", pady=(15, 0))
         buttons = ttk.Frame(box, style="Card.TFrame"); buttons.pack(anchor="w", pady=(17, 0))
-        ttk.Button(buttons, text="Convert", style="Accent.TButton", command=self._currency_convert).pack(side="left", padx=(0, 8))
-        ttk.Button(buttons, text="Refresh rates online", command=self._refresh_rates).pack(side="left")
+        GlassButton(buttons, "Convert", self._currency_convert, accent=True, width=114).pack(side="left", padx=(0, 9))
+        GlassButton(buttons, "Refresh rates online", self._refresh_rates, width=176).pack(side="left")
         self.convert_result = tk.StringVar(value="Converted result will appear here."); self._result(box, self.convert_result)
         ttk.Label(page, text="Exchange rates can change throughout the day. Check the displayed update status before relying on a conversion.", style="Sub.TLabel", wraplength=700).pack(anchor="w", pady=5)
 
