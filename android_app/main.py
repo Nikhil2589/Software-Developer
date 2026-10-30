@@ -1,5 +1,5 @@
 """Everyday Calculator for Android. Built with Kivy and packaged with Buildozer."""
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 import ast
 import json
@@ -465,8 +465,17 @@ class EverydayCalculatorApp(App):
         Window.clearcolor = COLORS["background"]
         Window.softinput_mode = "below_target"
         Window.fullscreen = False
-        self.settings = JsonStore(os.path.join(self.user_data_dir, "settings.json"))
-        self.user_name = self.settings.get("profile").get("name", "") if self.settings.exists("profile") else ""
+        self.settings = None
+        self.user_name = ""
+        try:
+            os.makedirs(self.user_data_dir, exist_ok=True)
+            self.settings = JsonStore(os.path.join(self.user_data_dir, "settings.json"))
+            if self.settings.exists("profile"):
+                self.user_name = self.settings.get("profile").get("name", "")
+        except Exception:
+            # Storage can be unavailable on some Android devices; keep the
+            # calculator usable and fall back to an in-memory name for this run.
+            self.settings = None
 
         root = BoxLayout(orientation="vertical", padding=(dp(14), dp(8), dp(14), dp(8)), spacing=dp(9))
         self.greeting = body_label("", size=25, bold=True, size_hint_y=None, height=dp(43))
@@ -514,8 +523,11 @@ class EverydayCalculatorApp(App):
         self.greeting.text = f"[b]Hello, {escape_markup(self.user_name)}.[/b]"
 
     def _persist_current_screen(self, _manager, screen_name):
-        if self.user_name and hasattr(self, "settings"):
-            self.settings.put("profile", name=self.user_name, current_screen=screen_name)
+        if self.user_name and self.settings is not None:
+            try:
+                self.settings.put("profile", name=self.user_name, current_screen=screen_name)
+            except Exception:
+                pass
 
     def _apply_system_bars(self, _dt):
         # Android 15+ draws edge-to-edge by default; pad the app below the
@@ -523,7 +535,7 @@ class EverydayCalculatorApp(App):
         try:
             from android.display_cutout import update_system_ui
             update_system_ui("#0b101b", "#0b101b", "Light", True, True)
-        except (ImportError, RuntimeError, AttributeError):
+        except Exception:
             pass
 
     def on_pause(self):
@@ -540,7 +552,11 @@ class EverydayCalculatorApp(App):
             setup.error.text = "Please enter your name to continue."
             return
         self.user_name = name[:24]
-        self.settings.put("profile", name=self.user_name, current_screen="calculator")
+        if self.settings is not None:
+            try:
+                self.settings.put("profile", name=self.user_name, current_screen="calculator")
+            except Exception:
+                pass
         self._set_greeting()
         self.main_nav.height = dp(56)
         self.main_nav.opacity = 1
