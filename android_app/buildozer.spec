@@ -4,7 +4,7 @@ package.name = everydaycalculator
 package.domain = com.nikhil2589
 source.dir = .
 source.include_exts = py,kv,png,jpg,jpeg,atlas,json,ttf
-version = 1.1.0
+version = 1.1.1
 requirements = hostpython3==3.13.2,python3==3.13.2,kivy==2.3.1
 orientation = portrait
 fullscreen = 0
