@@ -6,6 +6,8 @@ The calculator accepts arithmetic and linear or quadratic equations in `x`, incl
 
 ## Build an installable APK from GitHub
 
+The APK build starts automatically when Android app files change. You can also start one manually:
+
 1. Open the repository's **Actions** tab.
 2. Choose **Build Android APK** and click **Run workflow**.
 3. When the build finishes, open that workflow run and download the `everyday-calculator-apk` artifact.
