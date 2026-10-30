@@ -320,12 +320,12 @@ class App(tk.Tk):
         self.calc_result = tk.StringVar(value="Your answer will appear here.")
         self._result(box, self.calc_result)
         keypad = ttk.Frame(box, style="Card.TFrame", padding=(0, 18, 0, 2)); keypad.pack(fill="x")
-        keys = [["7", "8", "9", "÷", "AC"], ["4", "5", "6", "×", "⌫"],
-                ["1", "2", "3", "−", "+"], ["(", "0", ")", ".", "="]]
+        keys = [["7", "8", "9", "/", "AC"], ["4", "5", "6", "*", "DEL"],
+                ["1", "2", "3", "-", "+"], ["(", "0", ")", ".", "="]]
         for col_index in range(5): keypad.grid_columnconfigure(col_index, weight=1)
         for row_index, key_row in enumerate(keys):
             for col_index, key in enumerate(key_row):
-                is_operator = key in {"÷", "×", "−", "+", "="}
+                is_operator = key in {"/", "*", "-", "+", "="}
                 button = GlassButton(keypad, key, lambda value=key: self._key(value),
                                      accent=is_operator, width=90, height=46)
                 button.grid(row=row_index, column=col_index, sticky="ew", padx=4, pady=4)
@@ -342,9 +342,9 @@ class App(tk.Tk):
 
     def _key(self, key):
         if key == "AC": self.expr.set("")
-        elif key == "⌫": self.expr.set(self.expr.get()[:-1])
+        elif key == "DEL": self.expr.set(self.expr.get()[:-1])
         elif key == "=": self._calc()
-        else: self.expr.set(self.expr.get() + {"÷": "/", "×": "*", "−": "-"}.get(key, key))
+        else: self.expr.set(self.expr.get() + key)
     def _solve(self):
         try: self.calc_result.set(solve_equation(self.expr.get()))
         except Exception as e: self.calc_result.set(f"Could not solve: {e}")
