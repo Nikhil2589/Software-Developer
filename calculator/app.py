@@ -2,6 +2,7 @@
 import ast
 import math
 import operator
+import re
 import tkinter as tk
 from tkinter import ttk
 
@@ -63,7 +64,11 @@ class GlassButton(tk.Canvas):
 
 def calculate(expression):
     """Evaluate arithmetic via a strict AST allow-list (never eval user text)."""
-    expression = expression.replace("×", "*").replace("÷", "/").replace("−", "-").replace("^", "**")
+    expression = expression.strip().replace("×", "*").replace("÷", "/").replace("−", "-").replace("^", "**")
+    # Accept common algebra shorthand such as 4x, 3(2 + 1), and (2)(3).
+    expression = re.sub(r"(?<=\d)(?=x\b)", "*", expression)
+    expression = re.sub(r"(?<=\d)(?=\()", "*", expression)
+    expression = re.sub(r"(?<=\))(?=\()", "*", expression)
     tree = ast.parse(expression, mode="eval")
     binary = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
               ast.Div: operator.truediv, ast.FloorDiv: operator.floordiv,
@@ -98,7 +103,11 @@ def solve_equation(text):
     sides = text.replace("=", " = ").split("=")
     if len(sides) != 2: raise ValueError("Enter one equation with one equals sign, such as 2*x + 3 = 11.")
     # Determine polynomial coefficients by evaluating at x=0, 1, -1, 2.
-    def f(x): return calculate(sides[0].replace("x", f"({x})")) - calculate(sides[1].replace("x", f"({x})"))
+    def f(x):
+        value = f"({x})"
+        left = re.sub(r"(?<![A-Za-z_])x(?![A-Za-z_])", value, sides[0])
+        right = re.sub(r"(?<![A-Za-z_])x(?![A-Za-z_])", value, sides[1])
+        return calculate(left) - calculate(right)
     y0, y1, ym1, y2 = (f(v) for v in (0, 1, -1, 2))
     a = (y1 + ym1 - 2*y0) / 2
     b = (y1 - ym1) / 2
@@ -181,6 +190,8 @@ class App(tk.Tk):
         row = ttk.Frame(box, style="Card.TFrame"); row.pack(anchor="w")
         GlassButton(row, "Calculate", self._calc, accent=True, width=124).pack(side="left", padx=(0, 9))
         GlassButton(row, "Solve for x", self._solve, width=124).pack(side="left")
+        self.calc_result = tk.StringVar(value="Your answer will appear here.")
+        self._result(box, self.calc_result)
         keypad = ttk.Frame(box, style="Card.TFrame", padding=(0, 18, 0, 2)); keypad.pack(fill="x")
         keys = [["7", "8", "9", "÷", "AC"], ["4", "5", "6", "×", "⌫"],
                 ["1", "2", "3", "−", "+"], ["(", "0", ")", ".", "="]]
@@ -191,12 +202,15 @@ class App(tk.Tk):
                 button = GlassButton(keypad, key, lambda value=key: self._key(value),
                                      accent=is_operator, width=90, height=46)
                 button.grid(row=row_index, column=col_index, sticky="ew", padx=4, pady=4)
-        self.calc_result = tk.StringVar(value="Your answer will appear here."); self._result(box, self.calc_result)
         funcs = self.card(page, "Supported functions", "sin, cos, tan use radians. You can also use asin, acos, atan, log, ln, abs, round, floor, ceil, exp, pi, and e.")
         ttk.Label(funcs, text="Use * for multiplication, / for division, and ^ for powers. Expressions are evaluated safely.", style="Card.TLabel", foreground=MUTED, wraplength=730).pack(anchor="w")
 
     def _calc(self):
-        try: self.calc_result.set(f"= {calculate(self.expr.get())}")
+        try:
+            if "=" in self.expr.get():
+                self.calc_result.set(solve_equation(self.expr.get()))
+            else:
+                self.calc_result.set(f"= {calculate(self.expr.get())}")
         except Exception as e: self.calc_result.set(f"Check the expression: {e}")
 
     def _key(self, key):
