@@ -1,7 +1,9 @@
 """Everyday Calculator — a safe, standard-library desktop calculator."""
 import ast
+import json
 import math
 import operator
+from pathlib import Path
 import re
 import tkinter as tk
 from tkinter import ttk
@@ -159,7 +161,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Everyday Calculator")
-        self.geometry("1040x760")
+        self.geometry("1080x780")
         self.minsize(850, 650)
         self.configure(bg=APP_BG)
         self._style()
@@ -195,14 +197,108 @@ class App(tk.Tk):
                   selectforeground=[("readonly", INK)])
 
     def _build(self):
-        header = ttk.Frame(self, padding=(30, 22, 30, 14)); header.pack(fill="x")
+        self.user_name = tk.StringVar()
+        self.active_view = "welcome"
+
+        header = ttk.Frame(self, padding=(30, 22, 30, 8)); header.pack(fill="x")
         brand = ttk.Frame(header); brand.pack(anchor="w")
-        ttk.Label(brand, text="◈", foreground=BLUE, font=("Segoe UI", 25, "bold")).pack(side="left", padx=(0, 10))
         ttk.Label(brand, text="Everyday Calculator", style="Title.TLabel").pack(side="left")
-        ttk.Label(header, text="Calculate, solve equations, and convert everyday units.", style="Sub.TLabel").pack(anchor="w", pady=(3, 0))
-        self.tabs = ttk.Notebook(self); self.tabs.pack(fill="both", expand=True, padx=26, pady=(4, 24))
-        for title, builder in [("Calculator", self._calculator), ("Currency", self._currency), ("Mass", self._mass), ("Gravity", self._gravity), ("Data size", self._data)]:
-            page = ttk.Frame(self.tabs, padding=24); self.tabs.add(page, text=title); builder(page)
+        self.greeting = ttk.Label(header, text="", style="Sub.TLabel")
+        self.greeting.pack(anchor="w", pady=(4, 0))
+
+        self.nav_holder = tk.Frame(self, bg=APP_BG, height=58)
+        self.nav_holder.pack(fill="x", padx=30, pady=(2, 8))
+        self.view = ttk.Frame(self, padding=(30, 8, 30, 26))
+        self.view.pack(fill="both", expand=True)
+        self._show_welcome()
+
+    def _clear_view(self):
+        for child in self.view.winfo_children():
+            child.destroy()
+
+    def _render_nav(self, active):
+        for child in self.nav_holder.winfo_children():
+            child.destroy()
+        bar = tk.Frame(self.nav_holder, bg=APP_BG)
+        bar.pack(anchor="center")
+        GlassButton(bar, "Calculator", self._show_calculator, accent=active == "calculator", width=170, height=48).pack(side="left", padx=5)
+        GlassButton(bar, "Converter", self._show_converters, accent=active == "converter", width=170, height=48).pack(side="left", padx=5)
+
+    def _show_welcome(self):
+        self._clear_view()
+        for child in self.nav_holder.winfo_children():
+            child.destroy()
+        self.greeting.configure(text="Your everyday maths companion")
+        welcome = ttk.Frame(self.view, padding=46)
+        welcome.pack(expand=True)
+        ttk.Label(welcome, text="Let's make this yours", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(welcome, text="What should I call you?", style="Sub.TLabel").pack(anchor="w", pady=(8, 20))
+        entry = ttk.Entry(welcome, textvariable=self.user_name, font=("Segoe UI", 16), width=32)
+        entry.pack(fill="x", ipady=9)
+        GlassButton(welcome, "Start calculating", self._start, accent=True, width=180, height=48).pack(anchor="w", pady=(20, 0))
+        entry.bind("<Return>", lambda _event: self._start())
+        entry.focus_set()
+
+    def _start(self):
+        name = self.user_name.get().strip()
+        if not name:
+            self.bell()
+            return
+        self.user_name.set(name[:24])
+        self.greeting.configure(text=f"Hello, {self.user_name.get()}.")
+        self._show_calculator()
+
+    def _show_calculator(self):
+        if not self.user_name.get().strip():
+            self._show_welcome()
+            return
+        self.active_view = "calculator"
+        self._clear_view()
+        self._render_nav("calculator")
+        page = ttk.Frame(self.view)
+        page.pack(fill="both", expand=True)
+        self._calculator(page)
+
+    def _show_converters(self):
+        if not self.user_name.get().strip():
+            self._show_welcome()
+            return
+        self.active_view = "converter"
+        self._clear_view()
+        self._render_nav("converter")
+        ttk.Label(self.view, text="Choose a converter", style="CardTitle.TLabel", font=("Segoe UI", 18, "bold")).pack(anchor="w", pady=(4, 2))
+        ttk.Label(self.view, text="Choose a rounded card to open a converter.", style="Sub.TLabel").pack(anchor="w", pady=(0, 16))
+        grid = tk.Frame(self.view, bg=APP_BG)
+        grid.pack(fill="both", expand=True)
+        for column in range(2):
+            grid.grid_columnconfigure(column, weight=1)
+        cards = [
+            ("Currency", "USD to INR", self._show_currency),
+            ("Mass", "kg to lb  •  g to oz", self._show_mass),
+            ("Gravity", "m/s² to standard g", self._show_gravity),
+            ("Data size", "Bits to KB  •  MB to GB", self._show_data),
+        ]
+        for index, (title, hint, command) in enumerate(cards):
+            card = tk.Frame(grid, bg=CARD, highlightbackground=GLASS_EDGE, highlightthickness=1)
+            card.grid(row=index // 2, column=index % 2, sticky="nsew", padx=8, pady=8)
+            GlassButton(card, title, command, accent=index == 0, width=280, height=68).pack(fill="x", padx=18, pady=(18, 6))
+            tk.Label(card, text=hint, fg=MUTED, bg=CARD, font=("Segoe UI", 10)).pack(anchor="w", padx=26, pady=(0, 20))
+
+    def _show_converter_detail(self, builder, label):
+        self._clear_view()
+        self._render_nav("converter")
+        top = tk.Frame(self.view, bg=APP_BG)
+        top.pack(fill="x", pady=(2, 10))
+        GlassButton(top, "Back", self._show_converters, width=84, height=40).pack(side="left", padx=(0, 12))
+        ttk.Label(top, text=label, style="CardTitle.TLabel").pack(side="left")
+        page = ttk.Frame(self.view)
+        page.pack(fill="both", expand=True)
+        builder(page)
+
+    def _show_currency(self): self._show_converter_detail(self._currency, "Currency")
+    def _show_mass(self): self._show_converter_detail(self._mass, "Mass")
+    def _show_gravity(self): self._show_converter_detail(self._gravity, "Gravity")
+    def _show_data(self): self._show_converter_detail(self._data, "Data size")
 
     def card(self, parent, title, note):
         box = ttk.Frame(parent, style="Card.TFrame", padding=24, borderwidth=1, relief="solid"); box.pack(fill="x", pady=(0, 15))
