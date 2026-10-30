@@ -1,6 +1,6 @@
 # Everyday Calculator
 
-A dark, liquid-glass-inspired desktop calculator built with Python and Tkinter. It uses rounded, highlighted controls and includes a keypad, safe arithmetic calculator, a linear and quadratic equation solver, and currency, mass, gravitational acceleration, and data size converters.
+A dark, liquid-glass-inspired desktop calculator built with Python and Tkinter. It uses rounded, highlighted controls and includes a keypad, safe arithmetic calculator, a linear and quadratic equation solver, and currency, mass, gravitational acceleration, and data size converters. The solver accepts algebra shorthand such as `4x^2 + 3x - 5 = 0`; pressing **Calculate** also solves equations containing `=`.
 
 ## Run
 
