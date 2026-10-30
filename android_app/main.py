@@ -1,10 +1,11 @@
 """Everyday Calculator for Android. Built with Kivy and packaged with Buildozer."""
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 import ast
 import json
 import math
 import operator
+import os
 import re
 import threading
 import urllib.request
@@ -24,6 +25,8 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
 from kivy.core.window import Window
+from kivy.storage.jsonstore import JsonStore
+from kivy.utils import escape_markup
 
 
 COLORS = {
@@ -242,10 +245,10 @@ class CalculatorScreen(Screen):
         keypad_panel = GlassPanel(size_hint_y=None, height=dp(264), padding=dp(12), spacing=dp(8))
         keypad_panel.add_widget(body_label("QUICK KEYPAD", size=10, color=COLORS["muted"], size_hint_y=None, height=dp(17), bold=True))
         keys = GridLayout(cols=5, rows=4, spacing=dp(6))
-        for row in [["7", "8", "9", "÷", "AC"], ["4", "5", "6", "×", "⌫"],
-                    ["1", "2", "3", "−", "+"], ["(", "0", ")", ".", "="]]:
+        for row in [["7", "8", "9", "/", "AC"], ["4", "5", "6", "*", "DEL"],
+                    ["1", "2", "3", "-", "+"], ["(", "0", ")", ".", "="]]:
             for key in row:
-                keys.add_widget(GlassButton(text=key, accent=key in {"÷", "×", "−", "+", "="},
+                keys.add_widget(GlassButton(text=key, accent=key in {"/", "*", "-", "+", "="},
                                             on_release=lambda _btn, value=key: self.key(value)))
         keypad_panel.add_widget(keys)
         content.add_widget(keypad_panel)
@@ -269,7 +272,7 @@ class CalculatorScreen(Screen):
     def key(self, key):
         if key == "AC":
             self.expression.text = ""
-        elif key == "⌫":
+        elif key == "DEL":
             self.expression.text = self.expression.text[:-1]
         elif key == "=":
             self.calculate()
@@ -296,7 +299,8 @@ class ConverterGridScreen(Screen):
         content.add_widget(body_label("Tap a glass card to open it.", size=12, color=COLORS["muted"], size_hint_y=None, height=dp(24)))
         grid = GridLayout(cols=2, spacing=dp(10), size_hint_y=None, padding=dp(2))
         grid.bind(minimum_height=grid.setter("height"))
-        symbols = {"Currency": "⇄", "Mass": "◉", "Gravity": "g", "Data size": "01"}
+        # Keep card marks within the portable Roboto character set used on Android.
+        symbols = {"Currency": "$", "Mass": "kg", "Gravity": "g", "Data size": "bit"}
         for name, data in CONVERTERS.items():
             card = GlassButton(text=f"[size=25sp][color=8fc0ff]{symbols[name]}[/color][/size]\n[b]{name}[/b]\n[size=11sp][color=9baac4]{data['hint']}[/color][/size]",
                                size_hint=(1, None), height=dp(148), on_release=lambda _btn, n=name: self.app.open_converter(n))
@@ -324,7 +328,7 @@ class ConverterDetailScreen(Screen):
         content = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(12), padding=(0, dp(3), 0, dp(12)))
         content.bind(minimum_height=content.setter("height"))
         header = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(10))
-        header.add_widget(GlassButton(text="‹  Back", size_hint_x=None, width=dp(88), on_release=lambda *_: self.app.back_to_converters()))
+        header.add_widget(GlassButton(text="Back", size_hint_x=None, width=dp(88), on_release=lambda *_: self.app.back_to_converters()))
         header.add_widget(body_label(self.converter_name, size=20, bold=True))
         content.add_widget(header)
 
@@ -340,7 +344,7 @@ class ConverterDetailScreen(Screen):
         self.source = self._spinner(self.config["source"], units)
         self.target = self._spinner(self.config["target"], units)
         unit_row.add_widget(self.source)
-        unit_row.add_widget(body_label("→", size=22, color=COLORS["blue"], halign="center"))
+        unit_row.add_widget(body_label("to", size=13, color=COLORS["blue"], halign="center"))
         unit_row.add_widget(self.target)
         panel.add_widget(unit_row)
         panel.add_widget(GlassButton(text="Convert", accent=True, size_hint_y=None, height=dp(44), on_release=lambda *_: self.convert()))
@@ -416,6 +420,42 @@ class ConverterDetailScreen(Screen):
         threading.Thread(target=fetch, daemon=True).start()
 
 
+class NameSetupScreen(Screen):
+    """First-launch name prompt, shown once and saved on the device."""
+
+    def __init__(self, app, **kwargs):
+        super().__init__(**kwargs)
+        self.app = app
+        scroll = ScrollView(do_scroll_x=False, bar_width=dp(3))
+        content = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(14),
+                            padding=(0, dp(18), 0, dp(18)))
+        content.bind(minimum_height=content.setter("height"))
+        content.add_widget(body_label("Let's make this yours", size=25, bold=True,
+                                      size_hint_y=None, height=dp(42)))
+        content.add_widget(body_label("What should I call you?", size=15,
+                                      color=COLORS["muted"], size_hint_y=None, height=dp(30)))
+        panel = GlassPanel(size_hint_y=None, height=dp(188))
+        panel.add_widget(body_label("YOUR NAME", size=10, color=COLORS["muted"],
+                                    size_hint_y=None, height=dp(18), bold=True))
+        self.name_input = TextInput(hint_text="Type your name", multiline=False,
+                                    size_hint_y=None, height=dp(52), font_size=sp(19),
+                                    foreground_color=COLORS["text"], hint_text_color=COLORS["muted"],
+                                    cursor_color=COLORS["blue"], background_normal="",
+                                    background_active="", background_color=(0.07, 0.105, 0.17, 1),
+                                    padding=(dp(12), dp(14)))
+        self.name_input.bind(on_text_validate=lambda *_: self.app.start_with_name())
+        panel.add_widget(self.name_input)
+        self.error = body_label("", size=11, color=(1, .52, .52, 1),
+                                size_hint_y=None, height=dp(20))
+        panel.add_widget(self.error)
+        panel.add_widget(GlassButton(text="Start calculating", accent=True,
+                                     size_hint_y=None, height=dp(44),
+                                     on_release=lambda *_: self.app.start_with_name()))
+        content.add_widget(panel)
+        scroll.add_widget(content)
+        self.add_widget(scroll)
+
+
 class EverydayCalculatorApp(App):
     title = "Everyday Calculator"
     rates = {"USD": 1, "EUR": .92, "GBP": .79, "INR": 83.5, "JPY": 150,
@@ -424,19 +464,91 @@ class EverydayCalculatorApp(App):
     def build(self):
         Window.clearcolor = COLORS["background"]
         Window.softinput_mode = "below_target"
-        root = BoxLayout(orientation="vertical", padding=(dp(14), dp(15), dp(14), dp(12)), spacing=dp(12))
+        Window.fullscreen = False
+        self.settings = JsonStore(os.path.join(self.user_data_dir, "settings.json"))
+        self.user_name = self.settings.get("profile").get("name", "") if self.settings.exists("profile") else ""
+
+        root = BoxLayout(orientation="vertical", padding=(dp(14), dp(8), dp(14), dp(8)), spacing=dp(9))
+        self.greeting = body_label("", size=25, bold=True, size_hint_y=None, height=dp(43))
+        root.add_widget(self.greeting)
+
         nav = GlassPanel(orientation="horizontal", size_hint_y=None, height=dp(56), padding=dp(5), spacing=dp(6))
         self.calculator_tab = GlassButton(text="Calculator", selected=True, on_release=lambda *_: self.show_tab("Calculator"))
         self.converter_tab = GlassButton(text="Converter", on_release=lambda *_: self.show_tab("Converter"))
         nav.add_widget(self.calculator_tab)
         nav.add_widget(self.converter_tab)
         root.add_widget(nav)
+        self.main_nav = nav
 
         self.screens = ScreenManager(transition=SlideTransition(duration=.20))
+        self.screens.add_widget(NameSetupScreen(self, name="name_setup"))
         self.screens.add_widget(CalculatorScreen(self, name="calculator"))
         self.screens.add_widget(ConverterGridScreen(self, name="converter_grid"))
+        self.converter_screens = {}
+        for converter_name in CONVERTERS:
+            screen_name = self._converter_screen_name(converter_name)
+            self.screens.add_widget(ConverterDetailScreen(self, converter_name, name=screen_name))
+            self.converter_screens[converter_name] = screen_name
+        self.screens.bind(current=self._persist_current_screen)
         root.add_widget(self.screens)
+
+        if self.user_name:
+            self._set_greeting()
+            profile = self.settings.get("profile")
+            last_screen = profile.get("current_screen", "calculator")
+            self.screens.current = last_screen if last_screen in self.screens.screen_names else "calculator"
+        else:
+            self.greeting.text = "Welcome!"
+            self.main_nav.height = 0
+            self.main_nav.opacity = 0
+            self.main_nav.disabled = True
+            self.screens.current = "name_setup"
+
+        Clock.schedule_once(self._apply_system_bars, .5)
         return root
+
+    def _converter_screen_name(self, converter_name):
+        return "detail_" + converter_name.lower().replace(" ", "_")
+
+    def _set_greeting(self):
+        self.greeting.text = f"[b]Hello, {escape_markup(self.user_name)}.[/b]"
+
+    def _persist_current_screen(self, _manager, screen_name):
+        if self.user_name and hasattr(self, "settings"):
+            self.settings.put("profile", name=self.user_name, current_screen=screen_name)
+
+    def _apply_system_bars(self, _dt):
+        # Android 15+ draws edge-to-edge by default; pad the app below the
+        # status bar and above navigation controls when p4a provides this API.
+        try:
+            from android.display_cutout import update_system_ui
+            update_system_ui("#0b101b", "#0b101b", "Light", True, True)
+        except (ImportError, RuntimeError, AttributeError):
+            pass
+
+    def on_pause(self):
+        self._persist_current_screen(self.screens, self.screens.current)
+        return True
+
+    def on_resume(self):
+        Clock.schedule_once(self._apply_system_bars, .2)
+
+    def start_with_name(self):
+        setup = self.screens.get_screen("name_setup")
+        name = setup.name_input.text.strip()
+        if not name:
+            setup.error.text = "Please enter your name to continue."
+            return
+        self.user_name = name[:24]
+        self.settings.put("profile", name=self.user_name, current_screen="calculator")
+        self._set_greeting()
+        self.main_nav.height = dp(56)
+        self.main_nav.opacity = 1
+        self.main_nav.disabled = False
+        self.calculator_tab.selected = True
+        self.converter_tab.selected = False
+        self.screens.transition.direction = "left"
+        self.screens.current = "calculator"
 
     def show_tab(self, tab):
         is_calculator = tab == "Calculator"
@@ -447,10 +559,7 @@ class EverydayCalculatorApp(App):
             self.screens.current = "calculator" if is_calculator else "converter_grid"
 
     def open_converter(self, converter_name):
-        screen_name = "detail_" + converter_name.lower().replace(" ", "_")
-        if screen_name in self.screens.screen_names:
-            self.screens.remove_widget(self.screens.get_screen(screen_name))
-        self.screens.add_widget(ConverterDetailScreen(self, converter_name, name=screen_name))
+        screen_name = self.converter_screens[converter_name]
         self.converter_tab.selected = True
         self.calculator_tab.selected = False
         self.screens.transition.direction = "left"
