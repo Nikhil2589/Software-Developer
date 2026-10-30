@@ -23,6 +23,11 @@ class GlassButton(tk.Canvas):
         self.accent = accent
         self.normal = BLUE if accent else "#27344d"
         self.hover = "#5b9aff" if accent else "#354462"
+        self._scale = 1.0
+        self._animation_id = None
+        self._animation_start = 1.0
+        self._animation_target = 1.0
+        self._animation_step = 0
         try:
             parent_bg = parent.cget("background")
         except tk.TclError:
@@ -41,25 +46,51 @@ class GlassButton(tk.Canvas):
 
     def _draw(self):
         self.delete("all")
-        w, h = max(self.winfo_width(), 30), max(self.winfo_height(), 28)
-        r = min(14, h / 2 - 1, w / 2 - 1)
-        points = [r, 1, w-r, 1, w-1, 1, w-1, r, w-1, h-r, w-1, h-1,
-                  w-r, h-1, r, h-1, 1, h-1, 1, h-r, 1, r, 1, 1]
+        canvas_w, canvas_h = max(self.winfo_width(), 30), max(self.winfo_height(), 28)
+        w, h = (canvas_w - 10) * self._scale, (canvas_h - 10) * self._scale
+        x0, y0 = (canvas_w - w) / 2, (canvas_h - h) / 2
+        r = min(14 * self._scale, h / 2 - 1, w / 2 - 1)
+        points = [x0+r, y0, x0+w-r, y0, x0+w, y0, x0+w, y0+r,
+                  x0+w, y0+h-r, x0+w, y0+h, x0+w-r, y0+h, x0+r, y0+h,
+                  x0, y0+h, x0, y0+h-r, x0, y0+r, x0, y0]
         fill = self.hover if getattr(self, "_hovered", False) else self.normal
         self.create_polygon(points, smooth=True, splinesteps=18, fill=fill,
                             outline=GLASS_EDGE if not self.accent else "#83b4ff", width=1)
         # A fine top rim gives the flat Tk canvas a glass-like highlight.
-        self.create_line(r+5, 2, w-r-5, 2, fill="#a7c8ff" if self.accent else "#697c9f", width=1)
-        self.create_text(w/2, h/2+1, text=self.label, fill="white" if self.accent else INK,
-                         font=("Segoe UI", 10, "bold" if self.accent else "normal"))
+        self.create_line(x0+r+5, y0+1, x0+w-r-5, y0+1,
+                         fill="#a7c8ff" if self.accent else "#697c9f", width=1)
+        self.create_text(canvas_w/2, canvas_h/2+1, text=self.label,
+                         fill="white" if self.accent else INK,
+                         font=("Segoe UI", max(9, round(10*self._scale)), "bold" if self.accent else "normal"))
+
+    def _animate_to(self, target):
+        if self._animation_id is not None:
+            self.after_cancel(self._animation_id)
+        self._animation_start = self._scale
+        self._animation_target = target
+        self._animation_step = 0
+        self._animate_step()
+
+    def _animate_step(self):
+        self._animation_step += 1
+        progress = min(self._animation_step / 8, 1)
+        eased = 1 - (1 - progress) ** 3
+        self._scale = self._animation_start + (self._animation_target - self._animation_start) * eased
+        self._draw()
+        if progress < 1:
+            self._animation_id = self.after(15, self._animate_step)
+        else:
+            self._animation_id = None
 
     def _on_enter(self, _event):
         self._hovered = True
         self._draw()
+        self._animate_to(1.06)
 
     def _on_leave(self, _event):
         self._hovered = False
         self._draw()
+        self._animate_to(1.0)
 
 
 def calculate(expression):
